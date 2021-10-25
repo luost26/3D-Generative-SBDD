@@ -1,1 +1,3 @@
-# 3D-Generative-SBDD
+# A 3D Generative Model for Structure-Based Drug Design
+
+Coming soon...
