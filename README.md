@@ -1,6 +1,22 @@
 # A 3D Generative Model for Structure-Based Drug Design
 
-Coming soon...
+:construction: **Work in progress...**
+
+
+
+## Installation
+
+```bash
+conda create --name SBDD-3D python=3.8
+conda activate SBDD-3D
+
+conda install pytorch=1.10.1 torchvision torchaudio cudatoolkit=11.3 -c pytorch
+conda install pyg -c pyg -c conda-forge
+conda install easydict -c conda-forge
+conda install rdkit openbabel python-lmdb -c conda-forge
+```
+
+
 
 ## Citation
 
@@ -12,3 +28,4 @@ Coming soon...
     year={2021}
 }
 ```
+
