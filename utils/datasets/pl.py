@@ -15,6 +15,8 @@ class PocketLigandPairDataset(Dataset):
         super().__init__()
         self.raw_path = raw_path.rstrip('/')
         self.index_path = os.path.join(self.raw_path, 'index.pkl')
+        if not os.path.exists(self.index_path):
+            raise FileNotFoundError('Index file not found. Please download `index.pkl` from our open source repository and put it to `%s`' % os.path.dirname(self.index_path))
         self.processed_path = os.path.join(os.path.dirname(self.raw_path), os.path.basename(self.raw_path) + '_processed.lmdb')
         self.transform = transform
         self.db = None

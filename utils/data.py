@@ -1,7 +1,8 @@
 import copy
 import torch
 import numpy as np
-from torch_geometric.data import Data, DataLoader, Batch
+from torch_geometric.data import Data, Batch
+from torch_geometric.loader import DataLoader
 
 
 FOLLOW_BATCH = ['protein_element', 'ligand_context_element', 'pos_real', 'pos_fake']
