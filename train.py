@@ -5,7 +5,7 @@ from tqdm.auto import tqdm
 import torch
 from torch.nn.utils import clip_grad_norm_
 import torch.utils.tensorboard
-from torch_geometric.data import DataLoader
+from torch_geometric.loader import DataLoader
 
 from models.maskfill import MaskFillModel
 from utils.datasets import *
@@ -57,7 +57,7 @@ if __name__ == '__main__':
         config = config.dataset,
         transform = transform,
     )
-    train_set, val_set = subsets['train'], subsets['val']
+    train_set, val_set = subsets['train'], subsets['test']
     follow_batch = ['protein_element', 'ligand_context_element', 'pos_real', 'pos_fake']
     train_iterator = inf_iterator(DataLoader(
         train_set, 
