@@ -57,14 +57,22 @@ if __name__ == '__main__':
     )
     train_set, val_set = subsets['train'], subsets['test']
     follow_batch = ['protein_element', 'ligand_context_element', 'pos_real', 'pos_fake']
+    collate_exclude_keys = ['ligand_nbh_list']
     train_iterator = inf_iterator(DataLoader(
         train_set, 
         batch_size = config.train.batch_size, 
         shuffle = True,
         num_workers = config.train.num_workers,
-        follow_batch = follow_batch
+        follow_batch = follow_batch,
+        exclude_keys = collate_exclude_keys,
     ))
-    val_loader = DataLoader(val_set, config.train.batch_size, shuffle=False, follow_batch=follow_batch)
+    val_loader = DataLoader(
+        val_set, 
+        config.train.batch_size, 
+        shuffle=False, 
+        follow_batch=follow_batch,
+        exclude_keys = collate_exclude_keys,
+    )
 
     # Model
     logger.info('Building model...')

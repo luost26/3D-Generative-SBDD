@@ -341,6 +341,8 @@ class ContrastiveSample(object):
         element_real = data.ligand_masked_element
         ind_real = data.ligand_masked_feature
         cls_real = data.ligand_masked_element.view(-1, 1) == self.elements.view(1, -1)
+        if not (cls_real.sum(-1) > 0).all():
+            print(data.ligand_element)
         assert (cls_real.sum(-1) > 0).all(), 'Unexpected elements.'
 
         real_sample_idx = np.random.choice(np.arange(pos_real_mode.size(0)), size=self.num_real)
