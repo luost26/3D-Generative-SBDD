@@ -39,7 +39,23 @@ conda install tensorboard -c conda-forge
 
 ## Datasets
 
-Please refer to the [`README.md`](./data/README.md) in the `data` folder.
+Please refer to [`README.md`](./data/README.md) in the `data` folder.
+
+## Sampling
+
+### Sampling for Pockets in the Testset
+To sample molecules for the i-th pocket in the testset, run the following command:
+```bash
+python sample.py ./configs/sample.yml {i}  # Replace {i} with the index of the data. i is between 0 and 99 for the testset.
+```
+
+### Sampling for Other Pockets
+:construction: **Work in progress...**
+
+
+
+## Training
+:construction: **Work in progress...**
 
 
 ## Citation
@@ -52,4 +68,3 @@ Please refer to the [`README.md`](./data/README.md) in the `data` folder.
     year={2021}
 }
 ```
-
