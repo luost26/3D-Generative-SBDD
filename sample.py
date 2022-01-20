@@ -247,17 +247,17 @@ if __name__ == '__main__':
                         data_next.smiles = smiles
                         valid = filter_rd_mol(rdmol)
                         if not valid:
-                            logger.warning('Invalid molecule: %s' % smiles)
+                            logger.warning('Ignoring invalid molecule: %s' % smiles)
                             pool.failed.append(data_next)
                         elif smiles in pool.smiles:
-                            logger.warning('Duplicate molecule: %s' % smiles)
+                            logger.warning('Ignoring duplicate molecule: %s' % smiles)
                             pool.duplicate.append(data_next)
                         else:   # Pass checks
                             logger.info('Success: %s' % smiles)
                             pool.finished.append(data_next)
                             pool.smiles.add(smiles)
                     except MolReconsError:
-                        logger.warning('Reconstruction error encountered.')
+                        logger.warning('Ignoring, because reconstruction error encountered.')
                         pool.failed.append(data_next)
                 else:
                     if data_next.logp_history[-1] < config.sample.logp_thres:
