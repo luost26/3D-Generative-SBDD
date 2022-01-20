@@ -44,9 +44,10 @@ Please refer to [`README.md`](./data/README.md) in the `data` folder.
 ## Sampling
 
 ### Sampling for Pockets in the Testset
-To sample molecules for the i-th pocket in the testset, run the following command:
+To sample molecules for the i-th pocket in the testset, please first download the trained models following 
+[`README.md`](./pretrained/README.md) in the `pretrained` folder. Then, run the following command:
 ```bash
-python sample.py ./configs/sample.yml {i}  # Replace {i} with the index of the data. i is between 0 and 99 for the testset.
+python sample.py ./configs/sample.yml --data_id {i}  # Replace {i} with the index of the data. i is between 0 and 99 for the testset.
 ```
 
 ### Sampling for Other Pockets
