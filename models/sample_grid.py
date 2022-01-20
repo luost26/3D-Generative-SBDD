@@ -103,7 +103,11 @@ def grid_refine(pos_init, batch, model, radius=0.5, resolution=0.1, device=None)
                 y_flat = y_cls.flatten()
                 p = (y_flat - y_flat.logsumexp(dim=0)).exp()
                 p_argmax = torch.multinomial(p, 1)[0]
-                pos_idx, type_idx = p_argmax // y_cls.size(1), p_argmax % y_cls.size(1)
+
+                # pos_idx, type_idx = p_argmax // y_cls.size(1), p_argmax % y_cls.size(1)   
+                # [NOTE] operator // is deprecated by the latest version of PyTorch, use the following torch.div instead
+                pos_idx = torch.div(p_argmax, y_cls.size(1), rounding_mode='floor')
+                type_idx = p_argmax % y_cls.size(1)
 
                 pos_refined.append(pos_query[pos_idx].view(1, 3))
                 y_cls_refined.append(y_cls[pos_idx].view(1, -1))
