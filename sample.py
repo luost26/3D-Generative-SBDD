@@ -171,6 +171,9 @@ if __name__ == '__main__':
     testset = subsets['test']
     data = testset[args.data_id]
 
+    with open(os.path.join(log_dir, 'pocket_info.txt'), 'a') as f:
+        f.write(data.protein_filename + '\n')
+
     # Model (Main)
     logger.info('Loading main model...')
     ckpt = torch.load(config.model.main.checkpoint, map_location=args.device)
@@ -224,66 +227,80 @@ if __name__ == '__main__':
 
     global_step = 0
 
-    while len(pool.finished) < config.sample.num_samples:
-        global_step += 1
-        queue_size = len(pool.queue)
+    try:
+        while len(pool.finished) < config.sample.num_samples:
+            global_step += 1
+            queue_size = len(pool.queue)
 
-        queue_tmp = []
-        for data in tqdm(pool.queue):
-            nexts = []
-            data_next_list = get_next(
-                data.to(args.device), 
-                ftnet = ftnet,
-                model = model,
-                logger = logger,
-                num_next = 5,
-            )
+            queue_tmp = []
+            for data in tqdm(pool.queue):
+                nexts = []
+                data_next_list = get_next(
+                    data.to(args.device), 
+                    ftnet = ftnet,
+                    model = model,
+                    logger = logger,
+                    num_next = 5,
+                )
 
-            for data_next in data_next_list:
-                if data_next.status == STATUS_FINISHED:
-                    try:
-                        rdmol = reconstruct_from_generated(data_next)
-                        smiles = Chem.MolToSmiles(rdmol)
-                        data_next.smiles = smiles
-                        valid = filter_rd_mol(rdmol)
-                        if not valid:
-                            logger.warning('Ignoring invalid molecule: %s' % smiles)
-                            pool.failed.append(data_next)
-                        elif smiles in pool.smiles:
-                            logger.warning('Ignoring duplicate molecule: %s' % smiles)
-                            pool.duplicate.append(data_next)
-                        else:   # Pass checks
-                            logger.info('Success: %s' % smiles)
-                            pool.finished.append(data_next)
-                            pool.smiles.add(smiles)
-                    except MolReconsError:
-                        logger.warning('Ignoring, because reconstruction error encountered.')
-                        pool.failed.append(data_next)
-                else:
-                    if data_next.logp_history[-1] < config.sample.logp_thres:
-                        if data_next.remaining_retry > 0:
-                            data_next.remaining_retry -= 1
-                            logger.info('[%s] Retrying, remaining %d retries' % (data.ligand_filename, data_next.remaining_retry))
-                            nexts.append(random_roll_back(data_next))
-                        else:
-                            logger.info('[%s] Failed' % (data.ligand_filename,))
+                for data_next in data_next_list:
+                    if data_next.status == STATUS_FINISHED:
+                        try:
+                            rdmol = reconstruct_from_generated(data_next)
+                            smiles = Chem.MolToSmiles(rdmol)
+                            data_next.smiles = smiles
+                            data_next.rdmol = rdmol
+                            valid = filter_rd_mol(rdmol)
+                            if not valid:
+                                logger.warning('Ignoring invalid molecule: %s' % smiles)
+                                pool.failed.append(data_next)
+                            elif smiles in pool.smiles:
+                                logger.warning('Ignoring duplicate molecule: %s' % smiles)
+                                pool.duplicate.append(data_next)
+                            else:   # Pass checks
+                                logger.info('Success: %s' % smiles)
+                                pool.finished.append(data_next)
+                                pool.smiles.add(smiles)
+                        except MolReconsError:
+                            logger.warning('Ignoring, because reconstruction error encountered.')
                             pool.failed.append(data_next)
                     else:
-                        nexts.append(data_next)
+                        if data_next.logp_history[-1] < config.sample.logp_thres:
+                            if data_next.remaining_retry > 0:
+                                data_next.remaining_retry -= 1
+                                logger.info('[%s] Retrying, remaining %d retries' % (data.ligand_filename, data_next.remaining_retry))
+                                nexts.append(random_roll_back(data_next))
+                            else:
+                                logger.info('[%s] Failed' % (data.ligand_filename,))
+                                pool.failed.append(data_next)
+                        else:
+                            nexts.append(data_next)
 
-            queue_tmp += nexts
+                queue_tmp += nexts
 
-        next_factor = 1.0
-        p_next = softmax(np.array([np.mean(data.logp_history) for data in queue_tmp]) * next_factor)
-        next_idx = np.random.choice(
-            np.arange(len(queue_tmp)),
-            size=config.sample.beam_size,
-            replace=False,
-            p=p_next,
-        )
-        pool.queue = [queue_tmp[idx] for idx in next_idx]
+            next_factor = 1.0
+            p_next = softmax(np.array([np.mean(data.logp_history) for data in queue_tmp]) * next_factor)
+            print(np.arange(len(queue_tmp)), config.sample.beam_size)
+            next_idx = np.random.choice(
+                np.arange(len(queue_tmp)),
+                size=config.sample.beam_size,
+                replace=True,
+                p=p_next,
+            )
+            pool.queue = [queue_tmp[idx] for idx in next_idx]
 
-        print_pool_status(pool, logger)
-        torch.save(pool, os.path.join(log_dir, 'samples_%d.pt' % global_step))
+            print_pool_status(pool, logger)
+            torch.save(pool, os.path.join(log_dir, 'samples_%d.pt' % global_step))
+    except KeyboardInterrupt:
+        logger.info('Terminated. Generated molecules will be saved.')
 
     torch.save(pool, os.path.join(log_dir, 'samples_all.pt'))
+
+    sdf_dir = os.path.join(log_dir, 'SDF')
+    os.makedirs(sdf_dir)
+    with open(os.path.join(log_dir, 'SMILES.txt'), 'a') as smiles_f:
+        for i, data_finished in enumerate(pool['finished']):
+            smiles_f.write(data_finished.smiles + '\n')
+            writer = Chem.SDWriter(os.path.join(sdf_dir, '%d.sdf' % i))
+            writer.write(data_finished.rdmol, confId=0)
+            writer.close()
