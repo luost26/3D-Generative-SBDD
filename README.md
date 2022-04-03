@@ -62,6 +62,7 @@ python sample_for_pdb.py \
     --center 32.0,28.0,36.0
 ```
 
+<img src="./assets/bounding_box.png" alt="bounding box" width="70%" />
 
 ## Training
 :construction: **Work in progress...**
