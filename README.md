@@ -58,7 +58,7 @@ To generate ligands for your own pocket, you need to provide the `PDB` structure
 Example:
 ```bash
 python sample_for_pdb.py \
-    --pdb_path ./example/4yhj.pdb
+    --pdb_path ./example/4yhj.pdb \
     --center 32.0,28.0,36.0
 ```
 
