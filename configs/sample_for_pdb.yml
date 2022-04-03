@@ -1,0 +1,14 @@
+
+model:
+  main:
+    checkpoint: ./pretrained/main_model.pt
+  frontier:
+    checkpoint: ./pretrained/frontier_model.pt
+
+sample:
+  seed: 2020
+  num_samples: 100
+  beam_size: 300
+  logp_thres: -.inf
+  num_retry: 5
+  max_steps: 50

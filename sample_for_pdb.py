@@ -1,140 +1,78 @@
 import os
-import shutil
 import argparse
-import random
-import torch
-import numpy as np
-from torch_geometric.data import Batch
+import warnings
 from easydict import EasyDict
-from tqdm.auto import tqdm
+from Bio import BiopythonWarning
+from Bio.PDB.PDBParser import PDBParser
+from Bio.PDB.Selection import unfold_entities
 from rdkit import Chem
-from scipy.special import softmax
 
-from models.maskfill import MaskFillModel
-from models.frontier import FrontierNetwork
-from models.sample import *
-from models.sample_grid import *
-from utils.transforms import *
-from utils.datasets import get_dataset
-from utils.misc import *
-from utils.data import FOLLOW_BATCH
-from utils.reconstruct import *
-from utils.chem import *
+from utils.protein_ligand import PDBProtein
+from sample import *    # Import everything from `sample.py`
 
 
-STATUS_RUNNING = 'running'
-STATUS_FINISHED = 'finished'
-STATUS_FAILED = 'failed'
+def pdb_to_pocket_data(pdb_path, center, bbox_size):
+    center = torch.FloatTensor(center)
+    warnings.simplefilter('ignore', BiopythonWarning)
+    ptable = Chem.GetPeriodicTable()
+    parser = PDBParser()
+    model = parser.get_structure(None, pdb_path)[0]
 
+    protein_dict = EasyDict({
+        'element': [],
+        'pos': [],
+        'is_backbone': [],
+        'atom_to_aa_type': [],
+    })
+    for atom in unfold_entities(model, 'A'):
+        res = atom.get_parent()
+        resname = res.get_resname()
+        if resname == 'MSE': resname = 'MET'
+        if resname not in PDBProtein.AA_NAME_NUMBER: continue   # Ignore water, heteros, and non-standard residues.
 
-def get_init_samples(data, model, batch_size=1, num_points=8000, refine_using_grid=True, default_max_retry=5):
-    batch = Batch.from_data_list([data] * batch_size, follow_batch=FOLLOW_BATCH)
-    with torch.no_grad():
-        pos_results, y_cls, y_ind = sample_init(batch, model, num_points=num_points)
-        pos_results, y_cls, y_ind = sample_refine(batch, model, pos_results)
-        pos_selected, y_cls_selected, y_ind_selected, type_selected = cluster_and_select_best(pos_results, y_cls, y_ind, eps=0.2)
-        if refine_using_grid:
-            pos_selected, y_cls_selected, y_ind_selected, type_selected = grid_refine(pos_selected, batch, model)
-    data_list = get_next_step(batch, pos_selected, y_cls_selected, y_ind_selected, type_selected, num_data_limit=20)
-    for data in data_list:
-        data.remaining_retry = default_max_retry
-        data.status = STATUS_RUNNING
-    return data_list
+        element_symb = atom.element.capitalize()
+        if element_symb == 'H': continue
+        x, y, z = atom.get_coord()
+        pos = torch.FloatTensor([x, y, z])
+        if (pos - center).abs().max() > (bbox_size / 2): 
+            continue
 
+        protein_dict['element'].append( ptable.GetAtomicNumber(element_symb))
+        protein_dict['pos'].append(pos)
+        protein_dict['is_backbone'].append(atom.get_name() in ['N', 'CA', 'C', 'O'])
+        protein_dict['atom_to_aa_type'].append(PDBProtein.AA_NAME_NUMBER[resname])
+        
+    if len(protein_dict['element']) == 0:
+        raise ValueError('No atoms found in the bounding box (center=%r, size=%f).' % (center, bbox_size))
 
-@torch.no_grad()
-def get_next(data, ftnet, model, num_next, factor_frontier=1.0, factor_cls=5.0, logger=BlackHole()):
-    batch = Batch.from_data_list([data], follow_batch=FOLLOW_BATCH)
+    protein_dict['element'] = torch.LongTensor(protein_dict['element'])
+    protein_dict['pos'] = torch.stack(protein_dict['pos'], dim=0)
+    protein_dict['is_backbone'] = torch.BoolTensor(protein_dict['is_backbone'])
+    protein_dict['atom_to_aa_type'] = torch.LongTensor(protein_dict['atom_to_aa_type'])
 
-    ### Predict which atoms are frontiers
-    ftnet.eval()
-    y_frontier = ftnet(
-        protein_pos = batch.protein_pos,
-        protein_atom_feature = batch.protein_atom_feature.float(),
-        ligand_pos = batch.ligand_context_pos,
-        ligand_atom_feature = batch.ligand_context_feature_full.float(), 
-        batch_protein = batch.protein_element_batch,
-        batch_ligand = batch.ligand_context_element_batch,
+    data = ProteinLigandData.from_protein_ligand_dicts(
+        protein_dict = protein_dict,
+        ligand_dict = {
+            'element': torch.empty([0,], dtype=torch.long),
+            'pos': torch.empty([0, 3], dtype=torch.float),
+            'atom_feature': torch.empty([0, 8], dtype=torch.float),
+            'bond_index': torch.empty([2, 0], dtype=torch.long),
+            'bond_type': torch.empty([0,], dtype=torch.long),
+        }
     )
-    # frontier_mask = (y_frontier * factor_frontier).flatten().sigmoid().bernoulli().bool()
-    frontier_mask = (y_frontier >= 0).flatten()
-    # If no frontiers, mark as success
-    if frontier_mask.sum().item() == 0:
-        # logger.info('[%s] Finished' % data.ligand_filename)
-        data.status = STATUS_FINISHED
-        return [data]
-
-    ### Sample from the neighborhood of frontiers
-    # Generate meshgrid to discretize the probability
-    pos_query = get_grids_batch(
-        batch.ligand_context_pos[frontier_mask],
-        batch.ligand_context_element_batch[frontier_mask],
-    )[0]    # This function only handles 1 data at a call
-    # pos_query = remove_triangles(pos_query, batch.ligand_context_pos, threshold=1.5)
-
-    # Evaluate probabilites on the meshgrid
-    model.eval()
-    y_cls_list, y_ind_list = model.query_batch([pos_query], batch, limit=10000)
-    y_cls, y_ind = y_cls_list[0], y_ind_list[0] # This function only handles 1 data at a call
-    y_flat = y_cls.flatten() * factor_cls
-    # Sample the index of next position and type
-    p = (y_flat - y_flat.logsumexp(dim=0)).exp()
-    p_argmax = torch.multinomial(p, num_next)  # OR  p_argmax = p.argsort(descending=True)[0]
-    pos_idx, type_idx = p_argmax // y_cls.size(1), p_argmax % y_cls.size(1)
-
-    pos_next = [pos_query[pos_idx].view(-1,3)]
-    y_cls_next = [y_cls[pos_idx].view(-1, y_cls.size(1))]
-    y_ind_next = [y_ind[pos_idx].view(-1, y_ind.size(1))]
-    type_next = [type_idx.view(-1)]
-
-    # Next state
-    data_next_list = get_next_step(
-        batch,
-        pos_selected = pos_next,
-        y_cls_selected = y_cls_next,
-        y_ind_selected = y_ind_next,
-        type_selected = type_next,
-    )
-
-    # logger.info('[%s] logp=%.6f' % (data.ligand_filename, logp))
-
-    return [data.to('cpu') for data in data_next_list]
-
-
-def print_pool_status(pool, logger):
-    logger.info('[Pool] Queue %d | Finished %d | Failed %d' % (
-        len(pool.queue), len(pool.finished), len(pool.failed)
-    ))
-
-
-def random_roll_back(data):
-    num_steps = len(data.logp_history)
-    back_to = random.randint(1, max(1, num_steps-1))
-    data.ligand_context_element = data.ligand_context_element[:back_to]
-    data.ligand_context_feature_full = data.ligand_context_feature_full[:back_to]
-    data.ligand_context_pos = data.ligand_context_pos[:back_to]
-    data.logp_history = data.logp_history[:back_to]
-
-    data.total_logp = np.sum(data.logp_history)
-    data.average_logp = np.mean(data.logp_history)
-    
     return data
-
-
-def data_exists(data, prevs):
-    for other in prevs:
-        if len(data.logp_history) == len(other.logp_history):
-            if (data.ligand_context_element == other.ligand_context_element).all().item() and \
-                (data.ligand_context_feature_full == other.ligand_context_feature_full).all().item() and \
-                torch.allclose(data.ligand_context_pos, other.ligand_context_pos):
-                return True
-    return False
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('config', type=str)
-    parser.add_argument('-i', '--data_id', type=int, default=0)
+    parser.add_argument('--pdb_path', type=str,
+                        default='./example/4yhj.pdb')
+    parser.add_argument('--center', type=lambda s: list(map(float, s.split(','))),
+                        default=[32.0, 28.0, 36.0], 
+                        help='Center of the pocket bounding box, in format x,y,z')
+    parser.add_argument('--bbox_size', type=float, default=23.0, 
+                        help='Pocket bounding box size')
+    parser.add_argument('--config', type=str, default='./configs/sample_for_pdb.yml')
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--outdir', type=str, default='./outputs')
     args = parser.parse_args()
@@ -145,14 +83,17 @@ if __name__ == '__main__':
     seed_all(config.sample.seed)
 
     # Logging
-    log_dir = get_new_log_dir(args.outdir, prefix='%s-%d' % (config_name, args.data_id))
+    log_dir = get_new_log_dir(args.outdir, prefix='%s-%s' % (
+        config_name, 
+        os.path.basename(args.pdb_path),
+    ))
     logger = get_logger('sample', log_dir)
     logger.info(args)
     logger.info(config)
     shutil.copyfile(args.config, os.path.join(log_dir, os.path.basename(args.config)))    
+    shutil.copyfile(args.pdb_path, os.path.join(log_dir, os.path.basename(args.pdb_path)))    
 
-    # Data
-    logger.info('Loading data...')
+
     protein_featurizer = FeaturizeProteinAtom()
     ligand_featurizer = FeaturizeLigandAtom()
     contrastive_sampler = ContrastiveSample(num_real=0, num_fake=0)
@@ -164,15 +105,8 @@ if __name__ == '__main__':
         FeaturizeLigandBond(),
         masking,
     ])
-    dataset, subsets = get_dataset(
-        config = config.dataset,
-        transform = transform,
-    )
-    testset = subsets['test']
-    data = testset[args.data_id]
-
-    with open(os.path.join(log_dir, 'pocket_info.txt'), 'a') as f:
-        f.write(data.protein_filename + '\n')
+    data = pdb_to_pocket_data(args.pdb_path, args.center, args.bbox_size)
+    data = transform(data)
 
     # Model (Main)
     logger.info('Loading main model...')
@@ -196,6 +130,10 @@ if __name__ == '__main__':
     ).to(args.device)
     ftnet.load_state_dict(ckpt_ft['model'])
 
+
+
+    # Sampling
+    # The algorithm is the same as the one `sample.py`.
 
     pool = EasyDict({
         'queue': [],
