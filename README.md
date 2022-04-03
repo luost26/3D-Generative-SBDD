@@ -34,6 +34,7 @@ conda activate SBDD-3D
 conda install pytorch=1.10.1 torchvision torchaudio cudatoolkit=11.3 -c pytorch
 conda install pyg -c pyg -c conda-forge
 conda install easydict -c conda-forge
+conda install biopython -c conda-forge
 conda install rdkit openbabel python-lmdb -c conda-forge
 conda install tensorboard -c conda-forge
 ```
