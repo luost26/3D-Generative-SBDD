@@ -18,6 +18,7 @@ The code has been tested in the following environment:
 | PyTorch Geometric | 2.0.3     |
 | RDKit             | 2020.09.5 |
 | OpenBabel         | 3.1.0     |
+| BioPython         | 1.79      |
 
 ### Install via Conda YML FIle (CUDA 11.3)
 ```bash
@@ -51,8 +52,15 @@ python sample.py ./configs/sample.yml --data_id {i}  # Replace {i} with the inde
 ```
 
 ### Sampling for Other Pockets
-:construction: **Work in progress...**
 
+To generate ligands for your own pocket, you need to provide the `PDB` structure file of the protein, the center coordinate of the pocket bounding box, and optionally the side length of the bounding box (default: 22Å).
+
+Example:
+```bash
+python sample_for_pdb.py \
+    --pdb_path ./example/4yhj.pdb
+    --center 32.0,28.0,36.0
+```
 
 
 ## Training
