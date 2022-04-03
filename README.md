@@ -51,7 +51,7 @@ To sample molecules for the i-th pocket in the testset, please first download th
 python sample.py ./configs/sample.yml --data_id {i}  # Replace {i} with the index of the data. i is between 0 and 99 for the testset.
 ```
 
-### Sampling for Other Pockets
+### Sampling for PDB Structures
 
 To generate ligands for your own pocket, you need to provide the `PDB` structure file of the protein, the center coordinate of the pocket bounding box, and optionally the side length of the bounding box (default: 22Å).
 
