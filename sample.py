@@ -280,7 +280,7 @@ if __name__ == '__main__':
 
             next_factor = 1.0
             p_next = softmax(np.array([np.mean(data.logp_history) for data in queue_tmp]) * next_factor)
-            print(np.arange(len(queue_tmp)), config.sample.beam_size)
+            # print(np.arange(len(queue_tmp)), config.sample.beam_size)
             next_idx = np.random.choice(
                 np.arange(len(queue_tmp)),
                 size=config.sample.beam_size,
