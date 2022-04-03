@@ -302,5 +302,6 @@ if __name__ == '__main__':
         for i, data_finished in enumerate(pool['finished']):
             smiles_f.write(data_finished.smiles + '\n')
             writer = Chem.SDWriter(os.path.join(sdf_dir, '%d.sdf' % i))
+            writer.SetKekulize(False)
             writer.write(data_finished.rdmol, confId=0)
             writer.close()
