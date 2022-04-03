@@ -1,8 +1,9 @@
 # A 3D Generative Model for Structure-Based Drug Design
 
-:construction: **Work in progress...**
+<img src="./assets/teaser.png" alt="teaser" />
 
-
+[[Paper](https://arxiv.org/abs/2203.10446)]
+[[Slides](https://drive.google.com/file/d/1PnypgrWqZAnaONy_Ccq-fmTDo4IRJpX1/view?usp=sharing)]
 
 ## Installation
 
