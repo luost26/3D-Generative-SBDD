@@ -5,6 +5,12 @@
 [[Paper](https://arxiv.org/abs/2203.10446)]
 [[Slides](https://drive.google.com/file/d/1PnypgrWqZAnaONy_Ccq-fmTDo4IRJpX1/view?usp=sharing)]
 
+## 📢 News
+
+- Please check out our latest work on structure-based drug design: *Pocket2Mol: Efficient Molecular Sampling Based on 3D Protein Pockets* (ICML 2022)
+  - Code: https://github.com/pengxingang/Pocket2Mol
+  - Paper: https://arxiv.org/abs/2205.07249
+
 ## Installation
 
 ### Dependency
