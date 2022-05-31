@@ -75,6 +75,9 @@ python sample_for_pdb.py \
 ## Training
 :construction: **Work in progress...**
 
+Our latest work [Pocket2Mol: Efficient Molecular Sampling Based on 3D Protein Pockets](https://arxiv.org/abs/2205.07249) (ICML 2022) is tested for training. 
+You may check it out here: https://github.com/pengxingang/Pocket2Mol
+
 
 ## Citation
 
