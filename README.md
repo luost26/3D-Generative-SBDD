@@ -38,7 +38,8 @@ conda activate SBDD-3D
 conda create --name SBDD-3D python=3.8
 conda activate SBDD-3D
 
-conda install pytorch=1.10.1 torchvision torchaudio cudatoolkit=11.3 -c pytorch
+pip install pytorch==1.10.1+cu113 torchvision==0.11.2+cu113 torchaudio==0.10.1+cu113 -f https://download.pytorch.org/whl/torch_stable.html --trusted-host download.pytorch.org
+conda install cudatoolkit=11.3 -c pytorch
 conda install pyg -c pyg -c conda-forge
 conda install easydict -c conda-forge
 conda install biopython -c conda-forge
