@@ -73,7 +73,6 @@ python sample_for_pdb.py \
 <img src="./assets/bounding_box.png" alt="bounding box" width="70%" />
 
 ## Training
-:construction: **Work in progress...**
 
 The open source repo of our latest work [Pocket2Mol: Efficient Molecular Sampling Based on 3D Protein Pockets](https://arxiv.org/abs/2205.07249) (ICML 2022) is tested for training. 
 You may check it out here: https://github.com/pengxingang/Pocket2Mol
